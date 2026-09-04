@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -51,13 +50,4 @@ fun MainAssistantScreen(viewModel: AssistantViewModel = viewModel()) {
 @Composable
 private fun AssistantTopBar() {
     TopAppBar(title = { Text("ATATECH") })
-}
-
-@Composable
-private fun AssistantStatusArea(state: AssistantState) {
-    when {
-        state.isLoading -> CircularProgressIndicator(modifier = Modifier.padding(8.dp))
-        state.errorMessage != null -> Text(text = state.errorMessage)
-        else -> Text(text = "Prêt à vous écouter")
-    }
 }

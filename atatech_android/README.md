@@ -66,13 +66,26 @@ adb shell am start -n com.atatech.app/.MainActivity
 - `app/src/main/java/com/atatech/app/`
   - `MainActivity.kt` — point d'entrée, affiche `MainAssistantScreen`
   - `MainAssistantScreen.kt` — écran principal (topbar, zone conversation, zone d'état, zone micro)
-  - `AssistantViewModel.kt` — état de l'assistant (`assistantState: StateFlow<AssistantState>`)
-  - `AssistantState.kt` — modèle d'état UI
+  - `AssistantViewModel.kt` — expose `assistantState: StateFlow<AssistantState>` (statut), `messages: StateFlow<List<ConversationMessage>>` et `currentInput: StateFlow<String>` séparément ; contient `processNationalityRequest(...)` (pipeline émettant les étapes via `ActionInProgress`, délais de 1500ms entre étapes) et `startListening()` (stub, appelé par `MicButton`)
+  - `AssistantState.kt` — sealed class du statut courant (`Idle`, `Thinking`, `ActionInProgress(action: ActionType)`, `Result(message)`, `Error`)
+  - `Orchestrator.kt` — interface du pipeline IA (`runOcr`, `extractFields`, `verify`) + `StubOrchestrator` (implémentation temporaire, à remplacer par le vrai pipeline)
   - `ConversationMessage.kt` — modèle d'un message de conversation
   - `PermissionHandler.kt` — gestion des permissions runtime (`rememberPermissionState`)
+  - `ThinkingIndicator.kt` — indicateur "Je réfléchis…" affiché pour `AssistantState.Thinking`
+  - `ActionInProgressIndicator.kt` — badge arrondi affichant une `ActionType` (icône + label, transition fondu entre étapes)
+  - `AssistantStatusArea.kt` — bascule animée entre les indicateurs selon `AssistantState`
+  - `ActionType.kt` — sealed class extensible listant les étapes du pipeline IA (scan, extraction, vérification, paiement, traduction, alerte, `Custom`) avec label + icône ; branché à `AssistantState.ActionInProgress`
+  - `MicButton.kt` — bouton micro : demande la permission `RECORD_AUDIO` si besoin, ouvre les paramètres système si refusée définitivement, sinon appelle `viewModel.startListening()` ; **pas encore branché** dans le slot réservé de `MainAssistantScreen.kt` (Julien s'en charge)
+  - `ScanDocumentButton.kt` — même principe pour `CAMERA`, demandée à l'appui sur "Scanner ma pièce", appelle `viewModel.startDocumentScan()`
+  - `SosButton.kt` — même principe pour `ACCESS_FINE_LOCATION`, demandée uniquement à l'appui sur le bouton SOS, appelle `viewModel.sendSosAlert()`
 
 ## Permissions déclarées
 
 - `RECORD_AUDIO`
 - `CAMERA`
 - `ACCESS_FINE_LOCATION`
+
+## Dépendances notables
+
+- `androidx.compose.material:material-icons-extended:1.6.0` — nécessaire pour les icônes hors du set de base (ex. `Icons.Default.Autorenew`)
+- `androidx.compose.animation:animation:1.6.0` — nécessaire pour `AnimatedContent` (transition entre statuts)
