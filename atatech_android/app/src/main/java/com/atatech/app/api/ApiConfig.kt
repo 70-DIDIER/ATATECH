@@ -18,7 +18,7 @@ private const val KEY_API_KEY = "api_key"
  * joint le même backend depuis n'importe quel réseau, au prix d'environ
  * 800 ms par appel (le trafic passe par Cloudflare).
  */
-const val DEFAULT_BASE_URL = "http://172.20.10.2:5055/"
+const val DEFAULT_BASE_URL = "http://10.79.86.132:5055/"
 
 object ApiConfig {
     private fun prefs(context: Context) =
