@@ -5,7 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -18,11 +23,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun MainAssistantScreen(viewModel: AssistantViewModel = viewModel()) {
+fun MainAssistantScreen(
+    viewModel: AssistantViewModel = viewModel(),
+    onOpenHistory: () -> Unit = {},
+    onOpenSettings: () -> Unit = {}
+) {
     val state by viewModel.assistantState.collectAsState()
 
     Scaffold(
-        topBar = { AssistantTopBar() }
+        topBar = { AssistantTopBar(onOpenHistory = onOpenHistory, onOpenSettings = onOpenSettings) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -30,17 +39,20 @@ fun MainAssistantScreen(viewModel: AssistantViewModel = viewModel()) {
                 .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Zone conversation — Julien branchera ConversationList(viewModel) ici
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                // slot réservé
-            }
+            // Zone conversation
+            ConversationList(
+                viewModel = viewModel,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            )
 
-            // Zone d'état — c'est TA responsabilité
+            // Zone d'état — responsabilité d'Afola
             AssistantStatusArea(state = state)
 
-            // Zone micro — Julien branchera MicButton(viewModel) ici
+            // Zone micro
             Box(modifier = Modifier.padding(24.dp)) {
-                // slot réservé
+                MicButton(viewModel = viewModel)
             }
         }
     }
@@ -48,6 +60,16 @@ fun MainAssistantScreen(viewModel: AssistantViewModel = viewModel()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AssistantTopBar() {
-    TopAppBar(title = { Text("ATATECH") })
+private fun AssistantTopBar(onOpenHistory: () -> Unit, onOpenSettings: () -> Unit) {
+    TopAppBar(
+        title = { Text("ATATECH") },
+        actions = {
+            IconButton(onClick = onOpenHistory) {
+                Icon(Icons.Filled.History, contentDescription = "Historique des demandes")
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Paramètres")
+            }
+        }
+    )
 }

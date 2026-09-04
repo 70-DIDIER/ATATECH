@@ -64,8 +64,11 @@ adb shell am start -n com.atatech.app/.MainActivity
 ## Structure
 
 - `app/src/main/java/com/atatech/app/`
-  - `MainActivity.kt` — point d'entrée, affiche `MainAssistantScreen`
-  - `MainAssistantScreen.kt` — écran principal (topbar, zone conversation, zone d'état, zone micro)
+  - `MainActivity.kt` — point d'entrée, `NavHost` avec 3 routes (`main`, `history`, `settings`)
+  - `MainAssistantScreen.kt` — écran principal (topbar avec accès historique/paramètres, `ConversationList`, zone d'état, `MicButton`)
+  - `ConversationList.kt` — liste défilante des messages (`viewModel.messages`), bulles utilisateur/assistant
+  - `HistoryScreen.kt` / `PastRequest.kt` — écran d'historique des demandes (données d'exemple pour l'instant)
+  - `SettingsScreen.kt` / `AppPreferences.kt` — écran de paramètres (choix de langue, persisté via `SharedPreferences`)
   - `AssistantViewModel.kt` — expose `assistantState: StateFlow<AssistantState>` (statut), `messages: StateFlow<List<ConversationMessage>>` et `currentInput: StateFlow<String>` séparément ; contient `processNationalityRequest(...)` (pipeline émettant les étapes via `ActionInProgress`, délais de 1500ms entre étapes) et `startListening()` (stub, appelé par `MicButton`)
   - `AssistantState.kt` — sealed class du statut courant (`Idle`, `Thinking`, `ActionInProgress(action: ActionType)`, `Result(message)`, `Error`)
   - `Orchestrator.kt` — interface du pipeline IA (`runOcr`, `extractFields`, `verify`) + `StubOrchestrator` (implémentation temporaire, à remplacer par le vrai pipeline)
@@ -75,7 +78,7 @@ adb shell am start -n com.atatech.app/.MainActivity
   - `ActionInProgressIndicator.kt` — badge arrondi affichant une `ActionType` (icône + label, transition fondu entre étapes)
   - `AssistantStatusArea.kt` — bascule animée entre les indicateurs selon `AssistantState`
   - `ActionType.kt` — sealed class extensible listant les étapes du pipeline IA (scan, extraction, vérification, paiement, traduction, alerte, `Custom`) avec label + icône ; branché à `AssistantState.ActionInProgress`
-  - `MicButton.kt` — bouton micro : demande la permission `RECORD_AUDIO` si besoin, ouvre les paramètres système si refusée définitivement, sinon appelle `viewModel.startListening()` ; **pas encore branché** dans le slot réservé de `MainAssistantScreen.kt` (Julien s'en charge)
+  - `MicButton.kt` — bouton micro branché (Julien) : reconnaissance vocale réelle (`SpeechRecognizer`), permission `RECORD_AUDIO` via `rememberPermissionState`, animation de pulsation pendant l'écoute, envoie le texte reconnu via `viewModel.onInputChange` + `sendMessage()`
   - `ScanDocumentButton.kt` — même principe pour `CAMERA`, demandée à l'appui sur "Scanner ma pièce", appelle `viewModel.startDocumentScan()`
   - `SosButton.kt` — même principe pour `ACCESS_FINE_LOCATION`, demandée uniquement à l'appui sur le bouton SOS, appelle `viewModel.sendSosAlert()`
 
