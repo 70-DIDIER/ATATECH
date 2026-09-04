@@ -76,3 +76,10 @@ adb shell am start -n com.atatech.app/.MainActivity
 - `RECORD_AUDIO`
 - `CAMERA`
 - `ACCESS_FINE_LOCATION`
+
+
+
+
+cd "c:\Users\Julien\Desktop\ATATECH\ATATECH" && git status && echo "---branch---" && git branch --show-current
+
+cd "c:\Users\Julien\Desktop\ATATECH\ATATECH" && git add atatech_android/app/build.gradle.kts atatech_android/app/src/main/AndroidManifest.xml atatech_android/app/src/main/java/com/atatech/app/ && git status

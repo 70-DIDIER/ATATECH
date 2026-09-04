@@ -1,6 +1,5 @@
 package com.atatech.app
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,10 +15,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -29,7 +30,12 @@ fun MainAssistantScreen(
     onOpenHistory: () -> Unit = {},
     onOpenSettings: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val state by viewModel.assistantState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.demarrer(context)
+    }
 
     Scaffold(
         topBar = { AssistantTopBar(onOpenHistory = onOpenHistory, onOpenSettings = onOpenSettings) }
@@ -40,7 +46,6 @@ fun MainAssistantScreen(
                 .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Zone conversation
             ConversationList(
                 viewModel = viewModel,
                 modifier = Modifier
@@ -48,13 +53,16 @@ fun MainAssistantScreen(
                     .fillMaxWidth()
             )
 
-            // Zone d'état — responsabilité d'Afola
-            AssistantStatusArea(state = state)
+            AssistantStatusArea(isLoading = state.isLoading, errorMessage = state.errorMessage)
 
-            // Zone micro
-            Box(modifier = Modifier.padding(24.dp)) {
-                MicButton(viewModel = viewModel)
-            }
+            AssistantInputArea(
+                attend = state.attendActuel,
+                fini = state.fini,
+                isLoading = state.isLoading,
+                onEnvoyerTexte = { texte -> viewModel.envoyerTexte(context, texte) },
+                onEnvoyerPhoto = { fichier -> viewModel.envoyerPhoto(context, fichier) },
+                onRecommencer = { viewModel.recommencer() }
+            )
         }
     }
 }
@@ -76,10 +84,9 @@ private fun AssistantTopBar(onOpenHistory: () -> Unit, onOpenSettings: () -> Uni
 }
 
 @Composable
-private fun AssistantStatusArea(state: AssistantState) {
+private fun AssistantStatusArea(isLoading: Boolean, errorMessage: String?) {
     when {
-        state.isLoading -> CircularProgressIndicator(modifier = Modifier.padding(8.dp))
-        state.errorMessage != null -> Text(text = state.errorMessage)
-        else -> Text(text = "Prêt à vous écouter")
+        isLoading -> CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+        errorMessage != null -> Text(text = errorMessage, modifier = Modifier.padding(8.dp))
     }
 }

@@ -35,8 +35,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
+/**
+ * Reconnaissance vocale sur l'appareil (Android SpeechRecognizer) — le texte reconnu est
+ * simplement rendu à l'appelant via [onTexteReconnu], qui décide quoi en faire (remplir un
+ * champ, l'envoyer...). Rien n'est transmis au backend ici : la doc actuelle (API_DEMARCHES.md
+ * §8) ne définit pas de route audio, tout passe par /message en texte.
+ */
 @Composable
-fun MicButton(viewModel: AssistantViewModel) {
+fun MicButton(enabled: Boolean = true, onTexteReconnu: (String) -> Unit) {
     val context = LocalContext.current
     var isListening by remember { mutableStateOf(false) }
 
@@ -65,12 +71,11 @@ fun MicButton(viewModel: AssistantViewModel) {
             }
             recognizer.setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: Bundle?) {
-                    val text = results
+                    val texte = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
-                    if (!text.isNullOrBlank()) {
-                        viewModel.onInputChange(text)
-                        viewModel.sendMessage()
+                    if (!texte.isNullOrBlank()) {
+                        onTexteReconnu(texte)
                     }
                     isListening = false
                 }
@@ -97,7 +102,7 @@ fun MicButton(viewModel: AssistantViewModel) {
     val pulseScale = if (isListening) {
         val animated by infiniteTransition.animateFloat(
             initialValue = 1f,
-            targetValue = 1.22f,
+            targetValue = 1.18f,
             animationSpec = infiniteRepeatable(
                 animation = tween(600),
                 repeatMode = RepeatMode.Reverse
@@ -110,11 +115,12 @@ fun MicButton(viewModel: AssistantViewModel) {
     }
 
     val backgroundColor by animateColorAsState(
-        targetValue = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        targetValue = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
         label = "mic-color"
     )
 
     IconButton(
+        enabled = enabled,
         onClick = {
             if (permissionState.isGranted) {
                 isListening = !isListening
@@ -123,13 +129,13 @@ fun MicButton(viewModel: AssistantViewModel) {
             }
         },
         modifier = Modifier
-            .size(72.dp)
+            .size(48.dp)
             .scale(pulseScale)
             .background(backgroundColor, CircleShape)
     ) {
         Icon(
             imageVector = if (isListening) Icons.Filled.MicOff else Icons.Filled.Mic,
-            contentDescription = if (isListening) "Arrêter l'écoute" else "Démarrer l'écoute",
+            contentDescription = if (isListening) "Arrêter l'écoute" else "Dicter au lieu d'écrire",
             tint = Color.White
         )
     }
