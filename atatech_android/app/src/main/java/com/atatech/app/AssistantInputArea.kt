@@ -8,23 +8,22 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,7 +36,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -49,14 +51,23 @@ import java.io.File
 import kotlinx.coroutines.delay
 
 /**
- * Le champ attend.type de chaque message pilote ce qui s'affiche ici — voir §3
- * de la doc. On ne devine jamais l'étape à partir du texte reçu.
+ * LA BARRE DE SAISIE EST PERMANENTE.
  *
- * LA NOTE VOCALE, en trois temps, comme sur l'interface web :
- *   1. repos        — champ de saisie + micro
- *   2. enregistrement — chronomètre, [annuler] et [valider]
- *   3. relecture    — le lecteur audio, on peut réécouter, jeter ou envoyer
- * Rien n'est envoyé tant que l'utilisateur n'a pas appuyé sur envoyer.
+ * Elle offre TOUJOURS les trois entrées — note vocale, appareil photo, texte —
+ * plus le bouton envoyer, quelle que soit l'étape du scénario. C'est
+ * l'utilisateur qui choisit son mode et qui envoie lui-même.
+ *
+ * Avant, une étape « photo » remplaçait toute la barre par un unique bouton
+ * « Prendre une photo » : l'utilisateur perdait l'accès aux autres modes et
+ * l'application décidait à sa place. Désormais, l'étape ne change qu'UNE seule
+ * chose, non bloquante : une SUGGESTION affichée au-dessus de la barre.
+ *
+ * Aucun changement d'étape ne déclenche d'action : ni intent caméra, ni envoi.
+ * Les deux états transitoires de la barre (enregistrement, relecture) sont
+ * déclenchés par l'utilisateur lui-même, exactement comme sur le web.
+ *
+ * Pas de boutons de choix : au menu, l'utilisateur répond à la voix et le
+ * scénario suit son ordre — nationalité d'abord, passeport ensuite.
  */
 @Composable
 fun AssistantInputArea(
@@ -68,100 +79,84 @@ fun AssistantInputArea(
     onEnvoyerPhoto: (File) -> Unit,
     onRecommencer: () -> Unit
 ) {
-    if (fini || attend?.type == "rien") {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(NyeGbe.Surface)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Démarche terminée.", color = NyeGbe.TexteDoux)
-            OutlinedButton(onClick = onRecommencer, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Nouvelle demande")
+    Column(modifier = Modifier.fillMaxWidth().background(NyeGbe.Surface)) {
+
+        // Fin de parcours : on le dit, sans retirer la barre.
+        if (fini) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Démarche terminée.",
+                    color = NyeGbe.TexteDoux,
+                    fontSize = 13.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedButton(onClick = onRecommencer) { Text("Nouvelle demande", fontSize = 13.sp) }
             }
         }
-        return
-    }
 
-    Column(modifier = Modifier.fillMaxWidth().background(NyeGbe.Surface)) {
-        when (attend?.type) {
-            "choix" -> ZoneChoix(
-                options = attend.options.orEmpty(),
-                enabled = !isLoading,
-                // On envoie le NUMÉRO au serveur, on AFFICHE le libellé.
-                onChoisir = { option -> onEnvoyerTexte(option.num.toString(), option.fr) }
-            )
-
-            "photo" -> PhotoCaptureButton(enabled = !isLoading, onPhotoReady = onEnvoyerPhoto)
-
-            "code_secret" -> ZoneSaisie(
-                masque = true,
-                enabled = !isLoading,
-                placeholder = listOfNotNull(
-                    "Code secret",
-                    attend.montant?.let { "($it ${attend.devise.orEmpty()})".trim() }
-                ).joinToString(" "),
-                onEnvoyerTexte = onEnvoyerTexte,
-                onEnvoyerVoix = onEnvoyerVoix
-            )
-
-            else -> ZoneSaisie(
-                masque = false,
-                enabled = !isLoading,
-                placeholder = "Écris ton message…",
-                onEnvoyerTexte = onEnvoyerTexte,
-                onEnvoyerVoix = onEnvoyerVoix
+        // La suggestion informe, elle ne contraint pas.
+        suggestion(attend, fini)?.let { texte ->
+            Text(
+                text = texte,
+                fontSize = 12.sp,
+                color = NyeGbe.TexteDiscret,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp)
             )
         }
+
+        BarrePermanente(
+            masque = attend?.type == "code_secret",
+            enabled = !isLoading,
+            onEnvoyerTexte = onEnvoyerTexte,
+            onEnvoyerVoix = onEnvoyerVoix,
+            onEnvoyerPhoto = onEnvoyerPhoto
+        )
     }
 }
 
-@Composable
-private fun ZoneChoix(
-    options: List<com.atatech.app.api.OptionChoix>,
-    enabled: Boolean,
-    onChoisir: (com.atatech.app.api.OptionChoix) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        options.forEach { option ->
-            Button(
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = NyeGbe.Violet),
-                onClick = { onChoisir(option) }
-            ) {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    // L'éwé d'abord et en gros : c'est la langue de l'utilisateur.
-                    Text(option.ewe, fontSize = 15.sp, fontWeight = FontWeight.Medium,
-                         color = Color.White)
-                    Text(option.fr, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                }
-            }
+/** Noms lisibles des pièces : le code technique du serveur (`acte_naissance`)
+ *  ne veut rien dire pour l'utilisateur. */
+private val PIECES = mapOf(
+    "acte_naissance" to "l'acte de naissance",
+    "nationalite_parent" to "le certificat de nationalité d'un parent",
+    "certificat_residence" to "le certificat de résidence (ou une facture)",
+    "photo_identite" to "la photo d'identité",
+    "cni" to "la carte d'identité (ou la carte d'électeur)",
+    "attestation_profession" to "l'attestation de profession"
+)
+
+private fun suggestion(attend: Attend?, fini: Boolean): String? {
+    if (fini) return null
+    return when (attend?.type) {
+        "photo" -> "Photographie ${PIECES[attend.piece] ?: "le document demandé"}."
+        "code_secret" -> {
+            val montant = attend.montant?.let { " ($it ${attend.devise.orEmpty()})".trimEnd() }
+            "Tape ton code${montant.orEmpty()} — il n'est ni enregistré ni relu."
         }
+        else -> null
     }
 }
 
 /**
- * Champ de saisie + micro. C'est ici que vivait le bug : le texte reconnu par
- * le SpeechRecognizer était affecté au champ (`texte = reconnu`). Il n'y a plus
- * ni reconnaissance vocale ni traduction sur le téléphone — on enregistre un
- * fichier, on le montre, on l'envoie.
+ * La barre elle-même : compacte, arrondie, quatre éléments alignés.
+ * Elle ne connaît PAS l'étape du scénario — seulement si la saisie doit être
+ * masquée (code secret).
  */
 @Composable
-private fun ZoneSaisie(
+private fun BarrePermanente(
     masque: Boolean,
     enabled: Boolean,
-    placeholder: String,
     onEnvoyerTexte: (String, String?) -> Unit,
-    onEnvoyerVoix: (NoteVocale) -> Unit
+    onEnvoyerVoix: (NoteVocale) -> Unit,
+    onEnvoyerPhoto: (File) -> Unit
 ) {
     val context = LocalContext.current
-    var texte by remember(masque) { mutableStateOf("") }
+    // `masque` ne sert PAS de clé : effacer le champ à chaque changement
+    // d'étape ferait perdre ce que l'utilisateur est en train d'écrire.
+    var texte by remember { mutableStateOf("") }
 
     val enregistreur = remember { VoiceRecorder(context) }
     var enregistrement by remember { mutableStateOf(false) }
@@ -169,11 +164,10 @@ private fun ZoneSaisie(
     var noteEnAttente by remember { mutableStateOf<NoteVocale?>(null) }
     var messageErreur by remember { mutableStateOf<String?>(null) }
 
-    // AU PREMIER LANCEMENT, la permission n'est pas encore accordée : le premier
+    // AU PREMIER LANCEMENT la permission n'est pas encore accordée : le premier
     // appui ouvre la boîte de dialogue système. Si on se contente d'enregistrer
-    // la réponse, l'utilisateur accorde le micro... et il ne se passe rien — il
-    // doit réappuyer sans comprendre pourquoi. On enchaîne donc directement sur
-    // l'enregistrement dès que la permission est donnée.
+    // la réponse, l'utilisateur accorde le micro et il ne se passe rien — il
+    // doit réappuyer sans comprendre. On enchaîne donc directement.
     val permissionMicro = rememberPermissionState(
         permission = Manifest.permission.RECORD_AUDIO,
         onResult = { accorde ->
@@ -185,7 +179,6 @@ private fun ZoneSaisie(
         }
     )
 
-    // Le chronomètre affiché pendant l'enregistrement.
     LaunchedEffect(enregistrement) {
         while (enregistrement) {
             chrono = enregistreur.dureeEcouleeMs()
@@ -193,93 +186,70 @@ private fun ZoneSaisie(
         }
     }
 
-    // Si l'écran disparaît en plein enregistrement, on relâche le micro.
     DisposableEffect(Unit) {
         onDispose { if (enregistreur.enCours) enregistreur.annuler() }
     }
 
     when {
-        // ── 2. Enregistrement en cours ───────────────────────────────────────
+        // Enregistrement en cours — état transitoire VOULU par l'utilisateur.
         enregistrement -> BarreEnregistrement(
             chronoMs = chrono,
-            onAnnuler = {
-                enregistreur.annuler()
-                enregistrement = false
-            },
+            onAnnuler = { enregistreur.annuler(); enregistrement = false },
             onValider = {
                 val note = enregistreur.arreterEtGarder()
                 enregistrement = false
-                if (note == null) {
-                    messageErreur = "Enregistrement trop court."
-                } else {
-                    noteEnAttente = note
-                    messageErreur = null
-                }
+                if (note == null) messageErreur = "Enregistrement trop court."
+                else { noteEnAttente = note; messageErreur = null }
             }
         )
 
-        // ── 3. Relecture avant envoi ─────────────────────────────────────────
+        // Relecture : rien n'est parti tant qu'il n'a pas validé.
         noteEnAttente != null -> BarreRelecture(
             note = noteEnAttente!!,
             enabled = enabled,
-            onJeter = {
-                noteEnAttente?.fichier?.delete()
-                noteEnAttente = null
-            },
-            onEnvoyer = {
-                noteEnAttente?.let(onEnvoyerVoix)
-                noteEnAttente = null
-            }
+            onJeter = { noteEnAttente?.fichier?.delete(); noteEnAttente = null },
+            onEnvoyer = { noteEnAttente?.let(onEnvoyerVoix); noteEnAttente = null }
         )
 
-        // ── 1. Repos ─────────────────────────────────────────────────────────
+        // Repos : micro, appareil photo, champ, envoyer. Toujours les quatre.
         else -> Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            OutlinedTextField(
-                value = texte,
-                onValueChange = { texte = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(placeholder, color = NyeGbe.TexteDiscret) },
-                singleLine = true,
-                enabled = enabled,
-                shape = RoundedCornerShape(22.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = NyeGbe.VioletClair,
-                    unfocusedBorderColor = NyeGbe.Bordure
-                ),
-                visualTransformation =
-                    if (masque) PasswordVisualTransformation() else VisualTransformation.None,
-                keyboardOptions =
-                    if (masque) KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
-                    else KeyboardOptions.Default
-            )
-
             BoutonRond(
                 icone = Icons.Filled.Mic,
                 description = "Enregistrer une note vocale",
-                fond = NyeGbe.VioletPale,
+                fond = Color.Transparent,
                 teinte = NyeGbe.Violet,
                 enabled = enabled,
                 onClick = {
                     messageErreur = null
-                    if (!permissionMicro.isGranted) {
-                        permissionMicro.request()
-                    } else if (enregistreur.demarrer()) {
-                        enregistrement = true
-                    } else {
-                        messageErreur = "Micro indisponible."
-                    }
+                    if (!permissionMicro.isGranted) permissionMicro.request()
+                    else if (enregistreur.demarrer()) enregistrement = true
+                    else messageErreur = "Micro indisponible."
                 }
+            )
+
+            // L'appareil photo, à côté du micro : la photo est un mode de
+            // réponse comme un autre, disponible à toutes les étapes.
+            BoutonPhoto(enabled = enabled, onPhotoReady = onEnvoyerPhoto)
+
+            ChampArrondi(
+                texte = texte,
+                onTexteChange = { texte = it },
+                masque = masque,
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
             )
 
             BoutonRond(
                 icone = Icons.Filled.Send,
                 description = "Envoyer",
-                fond = NyeGbe.Violet,
-                teinte = Color.White,
+                fond = if (texte.isNotBlank()) NyeGbe.Violet else Color.Transparent,
+                teinte = if (texte.isNotBlank()) Color.White else NyeGbe.TexteDiscret,
                 enabled = enabled && texte.isNotBlank(),
                 onClick = {
                     onEnvoyerTexte(texte, null)
@@ -294,7 +264,54 @@ private fun ZoneSaisie(
             text = it,
             color = NyeGbe.Erreur,
             fontSize = 12.sp,
-            modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
+        )
+    }
+}
+
+/**
+ * Le champ de saisie, en pilule fine.
+ *
+ * BasicTextField plutôt qu'OutlinedTextField : ce dernier impose une hauteur
+ * minimale de 56 dp (règle Material), ce qui donnait la barre épaisse et carrée
+ * qu'on voulait éviter. Ici on maîtrise la hauteur et l'arrondi.
+ */
+@Composable
+private fun ChampArrondi(
+    texte: String,
+    onTexteChange: (String) -> Unit,
+    masque: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .background(NyeGbe.Fond, RoundedCornerShape(20.dp))
+            .border(1.dp, NyeGbe.Bordure, RoundedCornerShape(20.dp))
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        if (texte.isEmpty()) {
+            Text(
+                text = if (masque) "Ton code…" else "Écris ton message…",
+                color = NyeGbe.TexteDiscret,
+                fontSize = 14.sp
+            )
+        }
+        BasicTextField(
+            value = texte,
+            onValueChange = onTexteChange,
+            enabled = enabled,
+            singleLine = true,
+            textStyle = TextStyle(color = NyeGbe.Texte, fontSize = 14.sp),
+            cursorBrush = SolidColor(NyeGbe.Violet),
+            visualTransformation =
+                if (masque) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions =
+                if (masque) KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                else KeyboardOptions.Default,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -304,11 +321,11 @@ private fun BarreEnregistrement(chronoMs: Long, onAnnuler: () -> Unit, onValider
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(12.dp)
-            .background(NyeGbe.VioletPale, RoundedCornerShape(24.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .background(NyeGbe.VioletPale, RoundedCornerShape(22.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Croix rouge : on jette. Coche verte : on garde. Comme sur le web.
         BoutonRond(
@@ -320,11 +337,12 @@ private fun BarreEnregistrement(chronoMs: Long, onAnnuler: () -> Unit, onValider
             onClick = onAnnuler
         )
 
-        Box(modifier = Modifier.size(9.dp).background(NyeGbe.Erreur, CircleShape))
+        Box(modifier = Modifier.size(8.dp).background(NyeGbe.Erreur, CircleShape))
 
         Text(
             text = "%d:%02d".format((chronoMs / 1000) / 60, (chronoMs / 1000) % 60),
             color = NyeGbe.Texte,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f)
         )
@@ -347,54 +365,50 @@ private fun BarreRelecture(
     onJeter: () -> Unit,
     onEnvoyer: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-        Text(
-            text = "Écoute avant d'envoyer",
-            fontSize = 11.sp,
-            color = NyeGbe.TexteDiscret,
-            modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .background(NyeGbe.Fond, RoundedCornerShape(22.dp))
+            .border(1.dp, NyeGbe.Bordure, RoundedCornerShape(22.dp))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        BoutonRond(
+            icone = Icons.Filled.Close,
+            description = "Jeter la note vocale",
+            fond = Color.Transparent,
+            teinte = NyeGbe.Erreur,
+            enabled = enabled,
+            onClick = onJeter
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, NyeGbe.Bordure, RoundedCornerShape(24.dp))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            BoutonRond(
-                icone = Icons.Filled.Close,
-                description = "Jeter la note vocale",
-                fond = Color.Transparent,
-                teinte = NyeGbe.Erreur,
-                enabled = enabled,
-                onClick = onJeter
-            )
 
-            LecteurAudio(
-                source = note.fichier.absolutePath,
-                modifier = Modifier.weight(1f),
-                couleurActive = NyeGbe.Violet,
-                couleurInactive = NyeGbe.VioletSoft,
-                couleurTexte = NyeGbe.TexteDoux,
-                dureeConnueMs = note.dureeMs
-            )
+        LecteurAudio(
+            source = note.fichier.absolutePath,
+            modifier = Modifier.weight(1f),
+            couleurActive = NyeGbe.Violet,
+            couleurInactive = NyeGbe.VioletSoft,
+            couleurTexte = NyeGbe.TexteDoux,
+            dureeConnueMs = note.dureeMs
+        )
 
-            BoutonRond(
-                icone = Icons.Filled.Send,
-                description = "Envoyer la note vocale",
-                fond = NyeGbe.Violet,
-                teinte = Color.White,
-                enabled = enabled,
-                onClick = onEnvoyer
-            )
-        }
+        BoutonRond(
+            icone = Icons.Filled.Send,
+            description = "Envoyer la note vocale",
+            fond = NyeGbe.Violet,
+            teinte = Color.White,
+            enabled = enabled,
+            onClick = onEnvoyer
+        )
     }
 }
 
+/** Bouton circulaire de 40 dp — assez grand pour le doigt, assez discret pour
+ *  ne pas écraser le champ de saisie. */
 @Composable
 private fun BoutonRond(
-    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    icone: ImageVector,
     description: String,
     fond: Color,
     teinte: Color,
@@ -404,10 +418,31 @@ private fun BoutonRond(
     IconButton(
         enabled = enabled,
         onClick = onClick,
-        modifier = Modifier.size(42.dp).background(
-            if (enabled) fond else fond.copy(alpha = 0.4f), CircleShape
-        )
+        modifier = Modifier
+            .size(40.dp)
+            .background(if (enabled) fond else fond.copy(alpha = 0.4f), CircleShape)
     ) {
-        Icon(icone, contentDescription = description, tint = teinte)
+        Icon(
+            imageVector = icone,
+            contentDescription = description,
+            tint = if (enabled) teinte else teinte.copy(alpha = 0.4f),
+            modifier = Modifier.size(21.dp)
+        )
+    }
+}
+
+/** L'icône appareil photo de la barre. Même mécanique de permission que le
+ *  gros bouton, mais ronde, pour tenir à côté du micro. */
+@Composable
+private fun BoutonPhoto(enabled: Boolean, onPhotoReady: (File) -> Unit) {
+    PhotoCaptureAction(onPhotoReady = onPhotoReady) { ouvrir ->
+        BoutonRond(
+            icone = Icons.Filled.PhotoCamera,
+            description = "Prendre une photo",
+            fond = Color.Transparent,
+            teinte = NyeGbe.Violet,
+            enabled = enabled,
+            onClick = ouvrir
+        )
     }
 }

@@ -4,10 +4,10 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.atatech.app.api.ApiClientProvider
+import com.atatech.app.api.EtatConversation
 import com.atatech.app.api.MessageRequest
 import com.atatech.app.api.MoshiProvider
 import com.atatech.app.api.NyeGbeApi
-import com.atatech.app.api.OuvrirSessionRequest
 import com.atatech.app.api.ReponseDemarches
 import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,12 +26,22 @@ class AssistantViewModel : ViewModel() {
     private val _state = MutableStateFlow(AssistantState())
     val assistantState: StateFlow<AssistantState> = _state.asStateFlow()
 
-    /** Ouvre la conversation — à appeler une fois au premier affichage de l'écran. */
+    /**
+     * L'ecran s'ouvre SANS RIEN DEMANDER au serveur.
+     *
+     * C'est a l'utilisateur de formuler son intention en premier — une note
+     * vocale, ou une phrase ecrite. Le menu des demarches n'arrive qu'en
+     * reponse a cette premiere prise de parole. Auparavant, /session etait
+     * appele des l'affichage et le menu tombait avant que l'utilisateur ait
+     * ouvert la bouche.
+     *
+     * L'etat de depart est construit localement (mode « etat », §2.4) : aucun
+     * aller-retour reseau n'est necessaire pour commencer.
+     */
     fun demarrer(context: Context) {
         if (_state.value.demarre) return
-        _state.update { it.copy(demarre = true, isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            appliquerReponse(context) { api -> api.ouvrirSession(OuvrirSessionRequest()) }
+        _state.update {
+            it.copy(demarre = true, etat = EtatConversation.neuf(), errorMessage = null)
         }
     }
 
@@ -132,7 +142,7 @@ class AssistantViewModel : ViewModel() {
     }
 
     fun recommencer() {
-        _state.update { AssistantState() }
+        _state.update { AssistantState(demarre = true, etat = EtatConversation.neuf()) }
     }
 
     private suspend fun appliquerReponse(

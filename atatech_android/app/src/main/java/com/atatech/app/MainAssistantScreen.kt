@@ -1,8 +1,10 @@
 package com.atatech.app
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -20,7 +22,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -72,7 +76,16 @@ fun MainAssistantScreen(
 @Composable
 private fun AssistantTopBar(onOpenHistory: () -> Unit, onOpenSettings: () -> Unit) {
     TopAppBar(
-        title = { Text("ATATECH") },
+        title = {
+            // Le logo de la marque, pas son nom ecrit : l'application s'adresse
+            // a des gens qui ne lisent pas.
+            Image(
+                painter = painterResource(R.drawable.logo_nye_gbe),
+                contentDescription = "Nye Gbe me",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.height(34.dp)
+            )
+        },
         actions = {
             IconButton(onClick = onOpenHistory) {
                 Icon(Icons.Filled.History, contentDescription = "Historique des demandes")

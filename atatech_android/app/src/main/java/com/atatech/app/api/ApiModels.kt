@@ -28,7 +28,22 @@ data class EtatConversation(
      * le serveur le relit à false et la protection ne joue plus.
      */
     @Json(name = "menu_vu") val menuVu: Boolean = false
-)
+) {
+    companion object {
+        /**
+         * Etat de depart, construit LOCALEMENT.
+         *
+         * On n'appelle plus /session a l'ouverture de l'ecran : c'est a
+         * l'utilisateur de formuler son intention en premier (« Ndi o, me di be
+         * ma wo gbadede biabia ade. »), et le menu ne vient qu'en reponse.
+         * Ouvrir une session affichait le menu avant qu'il ait parle.
+         */
+        fun neuf() = EtatConversation(
+            parcours = null, etape = 0, jour = null,
+            nationaliteFaite = false, relance = false, menuVu = false
+        )
+    }
+}
 
 data class OptionChoix(
     val num: Int,
