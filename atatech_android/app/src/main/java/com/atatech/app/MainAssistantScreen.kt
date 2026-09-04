@@ -59,7 +59,8 @@ fun MainAssistantScreen(
                 attend = state.attendActuel,
                 fini = state.fini,
                 isLoading = state.isLoading,
-                onEnvoyerTexte = { texte -> viewModel.envoyerTexte(context, texte) },
+                onEnvoyerTexte = { texte, libelle -> viewModel.envoyerTexte(context, texte, libelle) },
+                onEnvoyerVoix = { note -> viewModel.envoyerVoix(context, note) },
                 onEnvoyerPhoto = { fichier -> viewModel.envoyerPhoto(context, fichier) },
                 onRecommencer = { viewModel.recommencer() }
             )

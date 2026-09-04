@@ -20,7 +20,14 @@ data class EtatConversation(
     val etape: Int,
     val jour: String?,
     @Json(name = "nationalite_faite") val nationaliteFaite: Boolean,
-    val relance: Boolean
+    val relance: Boolean,
+    /**
+     * Ajouté côté serveur pour la note vocale : sans reconnaissance vocale, une
+     * 2e note sans choix doit déclencher une relance au lieu de réafficher le
+     * menu en boucle. En mode « état », si ce champ n'est pas renvoyé tel quel,
+     * le serveur le relit à false et la protection ne joue plus.
+     */
+    @Json(name = "menu_vu") val menuVu: Boolean = false
 )
 
 data class OptionChoix(
@@ -51,7 +58,10 @@ data class MessageAssistant(
     @Json(name = "titre_fr") val titreFr: String?,
     val carte: String?,
     val lignes: List<LigneBilingue> = emptyList(),
-    val menu: List<String> = emptyList(),
+    // Le serveur enverrait des OBJETS ici s'il remplissait ce champ (il envoie
+    // toujours [] pour les démarches). Typé List<String>, un menu non vide
+    // ferait échouer le décodage Moshi.
+    val menu: List<OptionChoix> = emptyList(),
     val ewe: String,
     val fr: String,
     val attend: Attend,
@@ -81,6 +91,16 @@ data class OuvrirSessionRequest(
  */
 data class MessageRequest(
     @Json(name = "session_id") val sessionId: String? = null,
-    val texte: String,
-    val etat: EtatConversation? = null
+    val texte: String = "",
+    val etat: EtatConversation? = null,
+    /**
+     * « texte » (défaut) ou « voix ».
+     *
+     * « voix » = l'utilisateur a répondu par une note vocale. AUCUNE
+     * reconnaissance vocale n'est nécessaire et `texte` reste vide : le
+     * scénario est scripté, il avance quoi que dise l'utilisateur
+     * (API_DEMARCHES.md §3). Le fichier audio n'est pas envoyé — il reste sur
+     * le téléphone pour la réécoute.
+     */
+    val type: String? = null
 )

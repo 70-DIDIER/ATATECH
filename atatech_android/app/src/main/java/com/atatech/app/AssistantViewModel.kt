@@ -35,8 +35,12 @@ class AssistantViewModel : ViewModel() {
         }
     }
 
-    /** Réponse libre, choix (numéro envoyé comme texte) ou code secret. */
-    fun envoyerTexte(context: Context, texte: String) {
+    /**
+     * Réponse libre, choix (numéro envoyé comme texte) ou code secret.
+     * [libelle] : ce qu'on AFFICHE si ce n'est pas le texte envoyé — un choix
+     * envoie « 2 » mais doit montrer « Mercredi ».
+     */
+    fun envoyerTexte(context: Context, texte: String, libelle: String? = null) {
         if (texte.isBlank() || _state.value.isLoading) return
 
         val etatPrecedent = _state.value.etat
@@ -47,7 +51,8 @@ class AssistantViewModel : ViewModel() {
                 // Le code n'est jamais gardé en clair dans l'état de l'app — voir §3.
                 tours = it.tours + TourConversation.Utilisateur(
                     texte = if (estCodeSecret) "••••" else texte,
-                    masque = estCodeSecret
+                    masque = estCodeSecret,
+                    libelle = if (estCodeSecret) null else libelle
                 ),
                 isLoading = true,
                 errorMessage = null
@@ -61,13 +66,47 @@ class AssistantViewModel : ViewModel() {
         }
     }
 
+    /**
+     * NOTE VOCALE — la fonction qui manquait, et sans laquelle aucune bulle
+     * audio ne pouvait apparaître.
+     *
+     * Le fichier N'EST PAS ENVOYÉ : le scénario est scripté, le serveur ne
+     * transcrit rien (API_DEMARCHES.md §3). On lui dit seulement « l'utilisateur
+     * a répondu à la voix » avec type = "voix". Le fichier reste dans le cache
+     * de l'application pour rester réécoutable dans le fil.
+     *
+     * La bulle est ajoutée AVANT l'appel réseau et n'est jamais retirée : la
+     * réponse du serveur ne fait qu'AJOUTER des tours (voir traiterReponse),
+     * elle ne remplace jamais la liste.
+     */
+    fun envoyerVoix(context: Context, note: NoteVocale) {
+        if (_state.value.isLoading) return
+        val etatPrecedent = _state.value.etat
+
+        _state.update {
+            it.copy(
+                tours = it.tours + TourConversation.Vocal(note.fichier, note.dureeMs),
+                isLoading = true,
+                errorMessage = null
+            )
+        }
+
+        viewModelScope.launch {
+            appliquerReponse(context) { api ->
+                api.envoyerMessage(
+                    MessageRequest(texte = "", type = "voix", etat = etatPrecedent)
+                )
+            }
+        }
+    }
+
     fun envoyerPhoto(context: Context, fichier: File) {
         if (_state.value.isLoading) return
         val etatPrecedent = _state.value.etat
 
         _state.update {
             it.copy(
-                tours = it.tours + TourConversation.Utilisateur("[photo envoyée]"),
+                tours = it.tours + TourConversation.Photo(fichier),
                 isLoading = true,
                 errorMessage = null
             )
