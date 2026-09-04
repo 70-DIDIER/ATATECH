@@ -169,9 +169,20 @@ private fun ZoneSaisie(
     var noteEnAttente by remember { mutableStateOf<NoteVocale?>(null) }
     var messageErreur by remember { mutableStateOf<String?>(null) }
 
+    // AU PREMIER LANCEMENT, la permission n'est pas encore accordée : le premier
+    // appui ouvre la boîte de dialogue système. Si on se contente d'enregistrer
+    // la réponse, l'utilisateur accorde le micro... et il ne se passe rien — il
+    // doit réappuyer sans comprendre pourquoi. On enchaîne donc directement sur
+    // l'enregistrement dès que la permission est donnée.
     val permissionMicro = rememberPermissionState(
         permission = Manifest.permission.RECORD_AUDIO,
-        onResult = { accorde -> if (!accorde) messageErreur = "Micro refusé." }
+        onResult = { accorde ->
+            when {
+                !accorde -> messageErreur = "Micro refusé — impossible d'enregistrer."
+                enregistreur.demarrer() -> { enregistrement = true; messageErreur = null }
+                else -> messageErreur = "Micro indisponible."
+            }
+        }
     )
 
     // Le chronomètre affiché pendant l'enregistrement.

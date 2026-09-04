@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 9+ refuse le HTTP en clair, et l'exemption est PAR DOMAINE. Or
+    l'adresse du backend change à chaque changement de Wi-Fi (partage de
+    connexion du hackathon) : une liste d'IP figées se périme en permanence, et
+    le symptôme est trompeur — l'application est bloquée AVANT l'envoi, donc le
+    serveur ne voit strictement rien arriver et on croit à une panne réseau.
+
+    On autorise donc le clair pour toutes les destinations, le temps du
+    hackathon. Le HTTPS reste utilisé quand l'URL en est une (le tunnel
+    Cloudflare, par exemple), et les certificats système continuent d'être
+    vérifiés normalement.
+
+    AVANT UNE VRAIE MISE EN LIGNE : remettre cleartextTrafficPermitted="false"
+    et servir l'API en HTTPS.
+-->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">10.79.86.132</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
 </network-security-config>
