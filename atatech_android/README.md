@@ -65,25 +65,35 @@ adb shell am start -n com.atatech.app/.MainActivity
 
 - `app/src/main/java/com/atatech/app/`
   - `MainActivity.kt` — point d'entrée, `NavHost` avec 3 routes (`main`, `history`, `settings`)
-  - `MainAssistantScreen.kt` — écran principal (topbar avec accès historique/paramètres, `ConversationList`, zone d'état, `MicButton`)
-  - `ConversationList.kt` — liste défilante des messages (`viewModel.messages`), bulles utilisateur/assistant
+  - `MainAssistantScreen.kt` — écran principal, **branché sur l'API Démarches réelle** : ouvre une session au lancement (`DemarcheViewModel.startSession`), affiche `DemarcheMessageList` + `DemarcheInputArea`
   - `HistoryScreen.kt` / `PastRequest.kt` — écran d'historique des demandes (données d'exemple pour l'instant)
-  - `SettingsScreen.kt` / `AppPreferences.kt` — écran de paramètres (choix de langue, persisté via `SharedPreferences`)
-  - `AssistantViewModel.kt` — expose `assistantState: StateFlow<AssistantState>` (statut), `messages: StateFlow<List<ConversationMessage>>` et `currentInput: StateFlow<String>` séparément ; contient `processNationalityRequest(...)` (pipeline émettant les étapes via `ActionInProgress`, délais de 1500ms entre étapes) et `startListening()` (stub, appelé par `MicButton`)
-  - `AssistantState.kt` — sealed class du statut courant (`Idle`, `Thinking`, `ActionInProgress(action: ActionType)`, `Result(message)`, `Error`)
-  - `Orchestrator.kt` — interface du pipeline IA (`runOcr`, `extractFields`, `verify`) + `StubOrchestrator` (implémentation temporaire, à remplacer par le vrai pipeline)
-  - `ConversationMessage.kt` — modèle d'un message de conversation
+  - `SettingsScreen.kt` / `AppPreferences.kt` — écran de paramètres (choix de langue + connexion serveur, voir plus bas)
   - `PermissionHandler.kt` — gestion des permissions runtime (`rememberPermissionState`)
-  - `ThinkingIndicator.kt` — indicateur "Je réfléchis…" affiché pour `AssistantState.Thinking`
-  - `ActionInProgressIndicator.kt` — badge arrondi affichant une `ActionType` (icône + label, transition fondu entre étapes)
-  - `AssistantStatusArea.kt` — bascule animée entre les indicateurs selon `AssistantState`
-  - `ActionType.kt` — sealed class extensible listant les étapes du pipeline IA (scan, extraction, vérification, paiement, traduction, alerte, `Custom`) avec label + icône ; branché à `AssistantState.ActionInProgress`
-  - `MicButton.kt` — bouton micro branché (Julien) : reconnaissance vocale réelle (`SpeechRecognizer`), permission `RECORD_AUDIO` via `rememberPermissionState`, animation de pulsation pendant l'écoute, envoie le texte reconnu via `viewModel.onInputChange` + `sendMessage()`
-  - `ScanDocumentButton.kt` — même principe pour `CAMERA`, demandée à l'appui sur "Scanner ma pièce", appelle `viewModel.startDocumentScan()`
-  - `SosButton.kt` — même principe pour `ACCESS_FINE_LOCATION`, demandée uniquement à l'appui sur le bouton SOS, appelle `viewModel.sendSosAlert()`
+  - `ThinkingIndicator.kt` — indicateur "Je réfléchis…"
+
+**Ancien pipeline factice, toujours dans le code mais plus branché à l'écran principal** (`AssistantViewModel`, `ConversationList`, `MessageInputBar`, `BackgroundListeningToggle`, `AssistantStatusArea`, `ActionType`/`ActionInProgressIndicator`, `Orchestrator`/`StubOrchestrator`, `MicButton`, `ScanDocumentButton`, `SosButton`) — conversation libre + note vocale + statut de pipeline simulé. Conservé si besoin de le rebrancher ailleurs, mais l'écran principal utilise maintenant `DemarcheViewModel`.
+
+### Intégration API « Nye Gbe — Démarches » (voir `API_DEMARCHES.md`)
+
+- `DemarchesModels.kt` — data classes du contrat JSON (`DemarchesResponse`, `EtatDemarche`, `DemarcheMessage`, `Attend`, `ChoixOption`, `LigneMessage`, requêtes)
+- `DemarchesApi.kt` — interface Retrofit (`ping`, `session`, `message`, `photo` multipart)
+- `ApiClient.kt` — construit un `Retrofit`/`OkHttp` à partir des préférences courantes ; ajoute l'en-tête `X-Api-Cle` sur toutes les routes sauf `/api/v1/ping`
+- `ApiPreferences.kt` — persiste l'URL de base et la clé API via `SharedPreferences`
+- `SettingsScreen.kt` — champs URL de base / clé API + bouton "Tester la connexion" (appelle `/ping`)
+- `DemarcheViewModel.kt` — état du parcours : `messages`, `attend` (pilote l'écran), `isFini`, `isLoading`, `errorMessage` ; mode **« état »** (pas de `session_id`, l'objet `etat` reçu est renvoyé à chaque tour — l'app survit à un redémarrage du backend)
+- `DemarcheMessageList.kt` — affiche les messages (éwé en gros, français en dessous ; format carte pour `carte == "fiche"`) et joue automatiquement `audio_url` (`MediaPlayer`)
+- `DemarcheInputArea.kt` — bascule l'input selon `attend.type` : `choix` → boutons, `photo` → appareil photo (`FileProvider` + `ActivityResultContracts.TakePicture`), `code_secret` → champ masqué (jamais journalisé), `texte` → saisie libre, `rien` → "Parcours terminé"
+
+**Pas encore fait / limites connues :**
+- Testé uniquement en local (compilation + UI) — **aucun backend n'a répondu pendant les tests**, voir note réseau ci-dessous
+- Le micro n'est pas branché à ce flux (la doc §8 précise qu'il n'est pas nécessaire pour le scénario scripté ; s'il est ajouté plus tard, il faudra enregistrer en PCM 16 bits/16kHz via `AudioRecord`, pas `MediaRecorder`/M4A)
+- Pas de `/api/v1/demarches/services` consommé (catalogue des services, non utilisé par le flux scripté)
+
+**Note réseau (04/09/2026)** : le port 5000 sur la machine de dev est occupé par un tout autre serveur (le site vitrine "Nye Gbe me"), pas l'API Démarches — `lancer_api.bat` n'a pas été trouvé sur cette machine. Il faut que quelqu'un lance le vrai backend et communique l'IP:port réellement affiché.
 
 ## Permissions déclarées
 
+- `INTERNET`
 - `RECORD_AUDIO`
 - `CAMERA`
 - `ACCESS_FINE_LOCATION`
@@ -92,3 +102,5 @@ adb shell am start -n com.atatech.app/.MainActivity
 
 - `androidx.compose.material:material-icons-extended:1.6.0` — nécessaire pour les icônes hors du set de base (ex. `Icons.Default.Autorenew`)
 - `androidx.compose.animation:animation:1.6.0` — nécessaire pour `AnimatedContent` (transition entre statuts)
+- `com.squareup.retrofit2:retrofit` + `converter-moshi`, `com.squareup.moshi:moshi-kotlin` (réflexion, pas de kapt), `com.squareup.okhttp3:okhttp` + `logging-interceptor` — client HTTP pour l'API Démarches
+- `android:usesCleartextTraffic="true"` dans le manifeste — l'API tourne en HTTP simple (voir `API_DEMARCHES.md` §1)

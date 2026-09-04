@@ -1,11 +1,7 @@
 package com.atatech.app
 
 import android.Manifest
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import android.media.MediaRecorder
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,68 +29,59 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import java.util.Locale
+import java.io.File
 
 @Composable
-fun MicButton(viewModel: AssistantViewModel) {
+fun MicButton(viewModel: AssistantViewModel, modifier: Modifier = Modifier.size(72.dp)) {
     val context = LocalContext.current
-    var isListening by remember { mutableStateOf(false) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
+    var outputFile by remember { mutableStateOf<File?>(null) }
 
     val permissionState = rememberPermissionState(
         permission = Manifest.permission.RECORD_AUDIO,
-        onResult = { granted -> if (granted) isListening = true }
+        onResult = { granted -> if (granted) isRecording = true }
     )
 
-    val recognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
-        } else {
-            null
-        }
-    }
-
     DisposableEffect(Unit) {
-        onDispose { recognizer?.destroy() }
+        onDispose { recorder?.release() }
     }
 
-    LaunchedEffect(isListening) {
-        if (isListening && recognizer != null) {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.FRENCH)
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            val file = File(context.filesDir, "note_${System.currentTimeMillis()}.m4a")
+            @Suppress("DEPRECATION")
+            val mediaRecorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
             }
-            recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onResults(results: Bundle?) {
-                    val text = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()
-                    if (!text.isNullOrBlank()) {
-                        viewModel.onInputChange(text)
-                        viewModel.sendMessage()
-                    }
-                    isListening = false
+            recorder = mediaRecorder
+            outputFile = file
+        } else {
+            val finishedFile = outputFile
+            recorder?.apply {
+                try {
+                    stop()
+                } catch (e: RuntimeException) {
+                    // Enregistrement trop court ou invalide, on ignore le fichier
                 }
+                release()
+            }
+            recorder = null
+            outputFile = null
 
-                override fun onError(error: Int) {
-                    isListening = false
-                }
-
-                override fun onReadyForSpeech(params: Bundle?) {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onPartialResults(partialResults: Bundle?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            recognizer.startListening(intent)
-        } else if (!isListening) {
-            recognizer?.stopListening()
+            if (finishedFile != null && finishedFile.exists() && finishedFile.length() > 0) {
+                viewModel.sendAudioMessage(finishedFile.absolutePath)
+            }
         }
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "mic-pulse")
-    val pulseScale = if (isListening) {
+    val pulseScale = if (isRecording) {
         val animated by infiniteTransition.animateFloat(
             initialValue = 1f,
             targetValue = 1.22f,
@@ -110,26 +97,27 @@ fun MicButton(viewModel: AssistantViewModel) {
     }
 
     val backgroundColor by animateColorAsState(
-        targetValue = if (isListening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        targetValue = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         label = "mic-color"
     )
 
     IconButton(
         onClick = {
-            if (permissionState.isGranted) {
-                isListening = !isListening
+            if (isRecording) {
+                isRecording = false
+            } else if (permissionState.isGranted) {
+                isRecording = true
             } else {
                 permissionState.request()
             }
         },
-        modifier = Modifier
-            .size(72.dp)
+        modifier = modifier
             .scale(pulseScale)
             .background(backgroundColor, CircleShape)
     ) {
         Icon(
-            imageVector = if (isListening) Icons.Filled.MicOff else Icons.Filled.Mic,
-            contentDescription = if (isListening) "Arrêter l'écoute" else "Démarrer l'écoute",
+            imageVector = if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
+            contentDescription = if (isRecording) "Arrêter l'enregistrement" else "Enregistrer une note vocale",
             tint = Color.White
         )
     }

@@ -1,6 +1,5 @@
 package com.atatech.app
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,24 +10,34 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun MainAssistantScreen(
-    viewModel: AssistantViewModel = viewModel(),
+    viewModel: DemarcheViewModel = viewModel(),
     onOpenHistory: () -> Unit = {},
     onOpenSettings: () -> Unit = {}
 ) {
-    val state by viewModel.assistantState.collectAsState()
+    val context = LocalContext.current
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val baseUrl = ApiPreferences.getBaseUrl(context)
+
+    LaunchedEffect(Unit) {
+        viewModel.startSession(context)
+    }
 
     Scaffold(
         topBar = { AssistantTopBar(onOpenHistory = onOpenHistory, onOpenSettings = onOpenSettings) }
@@ -39,21 +48,31 @@ fun MainAssistantScreen(
                 .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Zone conversation
-            ConversationList(
+            // Zone conversation (pilotée par l'API Démarches)
+            DemarcheMessageList(
                 viewModel = viewModel,
+                baseUrl = baseUrl,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             )
 
-            // Zone d'état — responsabilité d'Afola
-            AssistantStatusArea(state = state)
-
-            // Zone micro
-            Box(modifier = Modifier.padding(24.dp)) {
-                MicButton(viewModel = viewModel)
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage ?: "",
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
             }
+
+            if (isLoading) {
+                ThinkingIndicator()
+            }
+
+            // Zone de saisie (choix / photo / code masqué / texte selon `attend`)
+            DemarcheInputArea(viewModel = viewModel)
         }
     }
 }

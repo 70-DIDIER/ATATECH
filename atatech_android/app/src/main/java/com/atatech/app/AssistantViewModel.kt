@@ -24,6 +24,14 @@ class AssistantViewModel : ViewModel() {
     private val _currentInput = MutableStateFlow("")
     val currentInput: StateFlow<String> = _currentInput.asStateFlow()
 
+    private val _backgroundListeningEnabled = MutableStateFlow(false)
+    val backgroundListeningEnabled: StateFlow<Boolean> = _backgroundListeningEnabled.asStateFlow()
+
+    fun toggleBackgroundListening(enabled: Boolean) {
+        // TODO: brancher un vrai service d'ecoute en arriere-plan (mot d'activation)
+        _backgroundListeningEnabled.value = enabled
+    }
+
     fun onInputChange(text: String) {
         _currentInput.value = text
     }
@@ -47,9 +55,20 @@ class AssistantViewModel : ViewModel() {
         }
     }
 
-    fun startListening() {
-        // TODO: brancher la reconnaissance vocale reelle
+    fun sendAudioMessage(audioFilePath: String) {
+        val userMessage = ConversationMessage(
+            id = UUID.randomUUID().toString(),
+            role = MessageRole.USER,
+            content = audioFilePath,
+            contentType = MessageContentType.AUDIO
+        )
+
+        _messages.update { it + userMessage }
         _assistantState.value = AssistantState.Thinking
+
+        viewModelScope.launch {
+            // TODO: brancher le traitement reel de la note vocale (transcription optionnelle, envoi au pipeline)
+        }
     }
 
     fun startDocumentScan() {
