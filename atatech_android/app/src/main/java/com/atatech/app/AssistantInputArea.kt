@@ -2,6 +2,7 @@ package com.atatech.app
 
 import android.Manifest
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +23,6 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -273,7 +273,7 @@ private fun BarrePermanente(
             BoutonRond(
                 icone = Icons.Filled.Mic,
                 description = "Enregistrer une note vocale",
-                fond = Color.Transparent,
+                fond = NyeGbe.VioletPale,
                 teinte = NyeGbe.Violet,
                 enabled = enabled,
                 onClick = {
@@ -296,11 +296,14 @@ private fun BarrePermanente(
                 modifier = Modifier.weight(1f)
             )
 
+            // Fond TOUJOURS plein : un bouton qui devient transparent quand
+            // le champ est vide ne se comprend pas — on croit a un defaut
+            // d'affichage. Inactif, il est simplement attenue.
             BoutonRond(
                 icone = Icons.Filled.Send,
                 description = "Envoyer",
-                fond = if (texte.isNotBlank()) NyeGbe.Violet else Color.Transparent,
-                teinte = if (texte.isNotBlank()) Color.White else NyeGbe.TexteDiscret,
+                fond = NyeGbe.Violet,
+                teinte = Color.White,
                 enabled = enabled && texte.isNotBlank(),
                 onClick = {
                     onEnvoyerTexte(texte, null)
@@ -455,8 +458,18 @@ private fun BarreRelecture(
     }
 }
 
-/** Bouton circulaire de 40 dp — assez grand pour le doigt, assez discret pour
- *  ne pas écraser le champ de saisie. */
+/**
+ * Bouton circulaire de 40 dp.
+ *
+ * Une Box cliquable plutot qu'un IconButton : ce dernier impose une zone
+ * tactile de 48 dp quoi qu'on demande, donc un .size(40.dp) ne s'appliquait
+ * qu'au fond dessine, pas a l'encombrement reel — d'ou trois boutons qui
+ * ecrasaient le champ de saisie. 40 dp reste au-dessus du minimum confortable
+ * pour un doigt, et ici on obtient VRAIMENT 40 dp.
+ *
+ * Inactif : le fond est attenue, jamais retire. Un bouton qui disparait laisse
+ * croire a un bug d'affichage.
+ */
 @Composable
 private fun BoutonRond(
     icone: ImageVector,
@@ -466,18 +479,18 @@ private fun BoutonRond(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    IconButton(
-        enabled = enabled,
-        onClick = onClick,
+    Box(
         modifier = Modifier
             .size(40.dp)
-            .background(if (enabled) fond else fond.copy(alpha = 0.4f), CircleShape)
+            .background(if (enabled) fond else fond.copy(alpha = 0.35f), CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icone,
             contentDescription = description,
-            tint = if (enabled) teinte else teinte.copy(alpha = 0.4f),
-            modifier = Modifier.size(21.dp)
+            tint = if (enabled) teinte else teinte.copy(alpha = 0.55f),
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -490,7 +503,7 @@ private fun BoutonPhoto(enabled: Boolean, onPhotoReady: (File) -> Unit) {
         BoutonRond(
             icone = Icons.Filled.PhotoCamera,
             description = "Prendre une photo",
-            fond = Color.Transparent,
+            fond = NyeGbe.VioletPale,
             teinte = NyeGbe.Violet,
             enabled = enabled,
             onClick = ouvrir
