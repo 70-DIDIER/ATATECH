@@ -21,7 +21,8 @@ class MainActivity : ComponentActivity() {
                         composable("main") {
                             MainAssistantScreen(
                                 onOpenHistory = { navController.navigate("history") },
-                                onOpenSettings = { navController.navigate("settings") }
+                                onOpenSettings = { navController.navigate("settings") },
+                                onOpenAppel = { navController.navigate("appel") }
                             )
                         }
                         composable("history") {
@@ -29,6 +30,9 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("settings") {
                             SettingsScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable("appel") {
+                            AppelScreen(onBack = { navController.popBackStack() })
                         }
                     }
                 }

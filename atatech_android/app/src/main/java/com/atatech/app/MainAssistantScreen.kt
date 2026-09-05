@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,7 +33,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun MainAssistantScreen(
     viewModel: AssistantViewModel = viewModel(),
     onOpenHistory: () -> Unit = {},
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    onOpenAppel: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val state by viewModel.assistantState.collectAsState()
@@ -42,7 +44,13 @@ fun MainAssistantScreen(
     }
 
     Scaffold(
-        topBar = { AssistantTopBar(onOpenHistory = onOpenHistory, onOpenSettings = onOpenSettings) }
+        topBar = {
+            AssistantTopBar(
+                onOpenHistory = onOpenHistory,
+                onOpenSettings = onOpenSettings,
+                onOpenAppel = onOpenAppel
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -74,7 +82,11 @@ fun MainAssistantScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AssistantTopBar(onOpenHistory: () -> Unit, onOpenSettings: () -> Unit) {
+private fun AssistantTopBar(
+    onOpenHistory: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenAppel: () -> Unit
+) {
     TopAppBar(
         title = {
             // Le logo de la marque, pas son nom ecrit : l'application s'adresse
@@ -87,6 +99,9 @@ private fun AssistantTopBar(onOpenHistory: () -> Unit, onOpenSettings: () -> Uni
             )
         },
         actions = {
+            IconButton(onClick = onOpenAppel) {
+                Icon(Icons.Filled.Call, contentDescription = "Appeler quelqu'un")
+            }
             IconButton(onClick = onOpenHistory) {
                 Icon(Icons.Filled.History, contentDescription = "Historique des demandes")
             }
