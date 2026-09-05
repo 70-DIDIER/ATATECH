@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.atatech.app.api.ApiClientProvider
 import com.atatech.app.api.EtatConversation
+import com.atatech.app.api.etatNeuf
 import com.atatech.app.api.MessageRequest
 import com.atatech.app.api.MoshiProvider
 import com.atatech.app.api.NyeGbeApi
@@ -41,7 +42,7 @@ class AssistantViewModel : ViewModel() {
     fun demarrer(context: Context) {
         if (_state.value.demarre) return
         _state.update {
-            it.copy(demarre = true, etat = EtatConversation.neuf(), errorMessage = null)
+            it.copy(demarre = true, etat = etatNeuf(), errorMessage = null)
         }
     }
 
@@ -127,7 +128,13 @@ class AssistantViewModel : ViewModel() {
                 val api = ApiClientProvider.getApi(context)
                 // En mode "état", le champ etat se passe en JSON texte dans le formulaire — voir §2.4.
                 val etatPart = etatPrecedent?.let {
-                    val json = MoshiProvider.moshi.adapter(com.atatech.app.api.EtatConversation::class.java).toJson(it)
+                    // L'etat est une carte libre : il faut l'adaptateur
+                    // parametre, sinon Moshi ne sait pas quoi en faire.
+                    val type = com.squareup.moshi.Types.newParameterizedType(
+                        Map::class.java, String::class.java, Any::class.java
+                    )
+                    val json = MoshiProvider.moshi
+                        .adapter<Map<String, Any?>>(type).toJson(it)
                     json.toRequestBody("application/json".toMediaTypeOrNull())
                 }
                 val photoBody = fichier.asRequestBody("image/jpeg".toMediaTypeOrNull())
@@ -142,7 +149,7 @@ class AssistantViewModel : ViewModel() {
     }
 
     fun recommencer() {
-        _state.update { AssistantState(demarre = true, etat = EtatConversation.neuf()) }
+        _state.update { AssistantState(demarre = true, etat = etatNeuf()) }
     }
 
     private suspend fun appliquerReponse(

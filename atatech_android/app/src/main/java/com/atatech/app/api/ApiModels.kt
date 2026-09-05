@@ -15,35 +15,22 @@ data class PingResponse(
     @Json(name = "cle_requise") val cleRequise: Boolean
 )
 
-data class EtatConversation(
-    val parcours: String?,
-    val etape: Int,
-    val jour: String?,
-    @Json(name = "nationalite_faite") val nationaliteFaite: Boolean,
-    val relance: Boolean,
-    /**
-     * Ajouté côté serveur pour la note vocale : sans reconnaissance vocale, une
-     * 2e note sans choix doit déclencher une relance au lieu de réafficher le
-     * menu en boucle. En mode « état », si ce champ n'est pas renvoyé tel quel,
-     * le serveur le relit à false et la protection ne joue plus.
-     */
-    @Json(name = "menu_vu") val menuVu: Boolean = false
-) {
-    companion object {
-        /**
-         * Etat de depart, construit LOCALEMENT.
-         *
-         * On n'appelle plus /session a l'ouverture de l'ecran : c'est a
-         * l'utilisateur de formuler son intention en premier (« Ndi o, me di be
-         * ma wo gbadede biabia ade. »), et le menu ne vient qu'en reponse.
-         * Ouvrir une session affichait le menu avant qu'il ait parle.
-         */
-        fun neuf() = EtatConversation(
-            parcours = null, etape = 0, jour = null,
-            nationaliteFaite = false, relance = false, menuVu = false
-        )
-    }
-}
+/**
+ * L'ETAT DE LA CONVERSATION — volontairement NON typé.
+ *
+ * L'application ne doit RIEN comprendre à son contenu : elle le reçoit et le
+ * renvoie tel quel. C'est ce qui permet au serveur de faire évoluer le scénario
+ * (ajouter un champ, un nouveau scénario) sans qu'on reconstruise l'APK.
+ *
+ * Une data class typée a déjà causé deux bugs silencieux : Moshi laisse tomber
+ * les champs qu'elle ne connaît pas, et le serveur les relit à leur valeur par
+ * défaut. « menu_vu » perdu faisait boucler le menu ; « scenario » perdu
+ * ramènerait l'utilisateur aux démarches en plein milieu du scénario money.
+ */
+typealias EtatConversation = Map<String, Any?>
+
+/** État de départ : vide. Le serveur complète avec ses valeurs par défaut. */
+fun etatNeuf(): EtatConversation = emptyMap()
 
 data class OptionChoix(
     val num: Int,
@@ -86,6 +73,8 @@ data class MessageAssistant(
 data class ReponseDemarches(
     @Json(name = "session_id") val sessionId: String?,
     val etat: EtatConversation,
+    /** « demarches » ou « money » — indicatif, l'app n'a pas à s'en servir. */
+    val scenario: String? = null,
     val fini: Boolean,
     val messages: List<MessageAssistant>
 )

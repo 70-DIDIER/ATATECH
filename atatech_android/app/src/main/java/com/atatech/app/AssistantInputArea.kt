@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -66,8 +68,11 @@ import kotlinx.coroutines.delay
  * Les deux états transitoires de la barre (enregistrement, relecture) sont
  * déclenchés par l'utilisateur lui-même, exactement comme sur le web.
  *
- * Pas de boutons de choix : au menu, l'utilisateur répond à la voix et le
- * scénario suit son ordre — nationalité d'abord, passeport ensuite.
+ * Les boutons de choix, eux, s'ajoutent AU-DESSUS de la barre quand le serveur
+ * les demande (attend.type == "choix") — ils ne la remplacent jamais. Le menu
+ * des démarches n'en a pas : on y répond à la voix et le scénario suit son
+ * ordre. Celui du mobile money en a : envoyer et retirer de l'argent sont deux
+ * choses trop différentes pour être devinées.
  */
 @Composable
 fun AssistantInputArea(
@@ -95,6 +100,20 @@ fun AssistantInputArea(
                 )
                 OutlinedButton(onClick = onRecommencer) { Text("Nouvelle demande", fontSize = 13.sp) }
             }
+        }
+
+        // LES CHOIX, AU-DESSUS de la barre — ils ne la remplacent JAMAIS.
+        // Le menu des demarches n'en a pas (on y repond a la voix, et le
+        // scenario suit son ordre) ; celui du mobile money, si : envoyer et
+        // retirer de l'argent sont deux choses trop differentes pour etre
+        // devinees. C'est le serveur qui tranche, via attend.type.
+        if (attend?.type == "choix" && !attend.options.isNullOrEmpty()) {
+            ZoneChoix(
+                options = attend.options,
+                enabled = !isLoading,
+                // On envoie le NUMERO au serveur, on AFFICHE le libelle.
+                onChoisir = { option -> onEnvoyerTexte(option.num.toString(), option.fr) }
+            )
         }
 
         // La suggestion informe, elle ne contraint pas.
@@ -136,9 +155,41 @@ private fun suggestion(attend: Attend?, fini: Boolean): String? {
             val montant = attend.montant?.let { " ($it ${attend.devise.orEmpty()})".trimEnd() }
             "Tape ton code${montant.orEmpty()} — il n'est ni enregistré ni relu."
         }
+        "choix" -> "Appuie sur ton choix ci-dessus, ou réponds."
         else -> null
     }
 }
+
+@Composable
+private fun ZoneChoix(
+    options: List<com.atatech.app.api.OptionChoix>,
+    enabled: Boolean,
+    onChoisir: (com.atatech.app.api.OptionChoix) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { option ->
+            Button(
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = NyeGbe.Violet),
+                onClick = { onChoisir(option) }
+            ) {
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    // L'ewe d'abord et en gros : c'est la langue de l'utilisateur.
+                    Text(sansSignes(option.ewe), fontSize = 15.sp,
+                         fontWeight = FontWeight.Medium, color = Color.White)
+                    Text(option.fr, fontSize = 12.sp,
+                         color = Color.White.copy(alpha = 0.85f))
+                }
+            }
+        }
+    }
+}
+
 
 /**
  * La barre elle-même : compacte, arrondie, quatre éléments alignés.
