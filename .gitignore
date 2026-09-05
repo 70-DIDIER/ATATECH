@@ -1,0 +1,14 @@
+# Secrets — ne JAMAIS publier
+.env
+**/.env
+*.key
+
+# Caches Python
+__pycache__/
+*.py[cod]
+
+# Android
+/atatech_android/build/
+/atatech_android/app/build/
+/atatech_android/.gradle/
+local.properties
